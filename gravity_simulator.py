@@ -10,17 +10,17 @@ CENTRAL_MASS = 5e27  # Mass of the central body (kg)
 # Initialize particles
 def initialize_particles(num_particles, mass_range, position_range, velocity_range):
     masses = np.random.uniform(*mass_range, num_particles)
+    masses = np.insert(masses, 0, CENTRAL_MASS)  # Add central mass
     positions = np.random.uniform(*position_range, (num_particles, 2))
+    positions = np.insert(positions, 0, [0, 0], axis=0)  # Set central mass at origin
     velocities = np.random.uniform(*velocity_range, (num_particles, 2))
+    velocities = np.insert(velocities, 0, [0, 0], axis=0)  # Set central mass
     return masses, positions, velocities
 
 # Compute gravitational forces
 def compute_forces(masses, positions):
     num_particles = len(masses)
     forces = np.zeros_like(positions)
-    for i in range(num_particles):
-        forces[i] = -G*CENTRAL_MASS*masses[i]*positions[i] / np.linalg.norm(positions[i])**3
-        
     for i in range(num_particles):
         for j in range(num_particles):
             if i != j:
@@ -77,9 +77,10 @@ masses, positions, velocities = initialize_particles(NUM_PARTICLES, MASS_RANGE, 
 
 # Set up the plot
 fig, ax = plt.subplots()
-scat = ax.scatter(positions[:, 0], positions[:, 1], s=np.log10(masses), c='blue')
-ax.set_xlim((10*value for value in POSITION_RANGE))
-ax.set_ylim((10*value for value in POSITION_RANGE))
+scat = ax.scatter(positions[1:, 0], positions[1:, 1], s=np.log10(masses[1:]), c='blue')
+central_mass = ax.scatter(positions[0, 0], positions[0, 1], s=100, c='red', marker='*')
+ax.set_xlim((3*value for value in POSITION_RANGE))
+ax.set_ylim((3*value for value in POSITION_RANGE))
 ax.set_aspect('equal')
 ax.set_title("Gravity Simulator")
 ax.set_xlabel("X Position (m)")
@@ -92,7 +93,8 @@ kinetic_energy_text = ax.text(0.02, 0.95, '', transform=ax.transAxes, fontsize=1
 def animate(frame):
     global positions, velocities
     positions, velocities = update(masses, positions, velocities)
-    scat.set_offsets(positions)
+    scat.set_offsets(positions[1:])
+    central_mass.set_offsets(positions[0])
      # Update kinetic energy
     total_kinetic_energy = calculate_kinetic_energy(masses, velocities)
     kinetic_energy_text.set_text(f"Kinetic Energy: {total_kinetic_energy:.2e} J")
