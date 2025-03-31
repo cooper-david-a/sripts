@@ -56,19 +56,36 @@ def rk4_step(masses, positions, velocities, time_step):
 
     return new_positions, new_velocities
 
-# Calculate total kinetic energy
-def calculate_kinetic_energy(masses, velocities):
+# Calculate total energy (kinetic + potential)
+def calculate_total_energy(masses, positions, velocities):
     # Kinetic energy: KE = 0.5 * m * v^2
     kinetic_energy = 0.5 * masses * np.sum(velocities**2, axis=1)
-    return np.sum(kinetic_energy)
+    total_kinetic_energy = np.sum(kinetic_energy)
+
+    # Potential energy: PE = -G * m1 * m2 / r
+    num_particles = len(masses)
+    potential_energy = 0
+    for i in range(num_particles):
+        for j in range(i + 1, num_particles):  # Avoid double-counting pairs
+            r = np.linalg.norm(positions[j] - positions[i])  # Distance between particles
+            if r > 1e-2:  # Avoid division by zero
+                potential_energy -= G * masses[i] * masses[j] / r
+
+    total_energy = total_kinetic_energy + potential_energy
+    return total_energy
+
+# Function to calculate the number of masses within a certain distance from the origin
+def count_masses_within_radius(positions, radius):
+    distances = np.linalg.norm(positions, axis=1)  # Calculate distances from the origin
+    return np.sum(distances <= radius)  # Count masses within the radius
 
 # Update function using RK4
 def update(masses, positions, velocities):
     return rk4_step(masses, positions, velocities, TIME_STEP)
 
 # Simulation parameters
-NUM_PARTICLES = 15
-MASS_RANGE = (1e20, 1e22)  # Mass range in kg
+NUM_PARTICLES = 20
+MASS_RANGE = (1e10, 1e22)  # Mass range in kg
 POSITION_RANGE = (-1e11, 1e11)  # Position range in meters
 VELOCITY_RANGE = (-2e3, 2e3)  # Velocity range in meters/second
 
@@ -86,19 +103,27 @@ ax.set_title("Gravity Simulator")
 ax.set_xlabel("X Position (m)")
 ax.set_ylabel("Y Position (m)")
 
-# Add a text box to display kinetic energy
-kinetic_energy_text = ax.text(0.02, 0.95, '', transform=ax.transAxes, fontsize=10, color='red')
+# Add a text box to display total energy and number of masses within the radius
+info_text = ax.text(0.02, 0.9, '', transform=ax.transAxes, fontsize=10, color='red')
 
 # Animation update function
 def animate(frame):
     global positions, velocities
     positions, velocities = update(masses, positions, velocities)
-    scat.set_offsets(positions[1:])
-    central_mass.set_offsets(positions[0])
-     # Update kinetic energy
-    total_kinetic_energy = calculate_kinetic_energy(masses, velocities)
-    kinetic_energy_text.set_text(f"Kinetic Energy: {total_kinetic_energy:.2e} J")
-    return scat, kinetic_energy_text
+    scat.set_offsets(positions[1:])  # Update positions for all but the first mass
+    central_mass.set_offsets(positions[0])  # Update position for the first mass
+
+    # Update total energy
+    total_energy = calculate_total_energy(masses, positions, velocities)
+
+    # Count masses within 5e11 meters of the origin
+    radius = 5e11
+    masses_within_radius = count_masses_within_radius(positions[1:], radius)  # Exclude the central mass
+
+    # Update the text box
+    info_text.set_text(f"Total Energy: {total_energy:.2e} J\nclose masses: {masses_within_radius}")
+
+    return scat, central_mass, info_text
 
 # Create animation
 ani = FuncAnimation(fig, animate, frames=200, interval=10, blit=True)
