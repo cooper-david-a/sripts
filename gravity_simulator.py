@@ -25,10 +25,9 @@ def compute_forces(masses, positions):
         for j in range(num_particles):
             if i != j:
                 r = positions[j] - positions[i]
-                distance = np.linalg.norm(r)
-                if distance > 1e-2:  # Avoid division by zero
-                    force_magnitude = G * masses[i] * masses[j] / distance**2
-                    forces[i] += force_magnitude * r / distance
+                distance = max(np.linalg.norm(r), 1e-2)  # Avoid division by zero
+                force_magnitude = G * masses[i] * masses[j] / distance**2
+                forces[i] += force_magnitude * r / distance
     return forces
 
 # RK4 step function
@@ -68,8 +67,7 @@ def calculate_total_energy(masses, positions, velocities):
     for i in range(num_particles):
         for j in range(i + 1, num_particles):  # Avoid double-counting pairs
             r = np.linalg.norm(positions[j] - positions[i])  # Distance between particles
-            if r > 1e-2:  # Avoid division by zero
-                potential_energy -= G * masses[i] * masses[j] / r
+            potential_energy -= G * masses[i] * masses[j] / max(r,1e-2)
 
     total_energy = total_kinetic_energy + potential_energy
     return total_energy
@@ -91,6 +89,8 @@ VELOCITY_RANGE = (-2e3, 2e3)  # Velocity range in meters/second
 
 # Initialize particles
 masses, positions, velocities = initialize_particles(NUM_PARTICLES, MASS_RANGE, POSITION_RANGE, VELOCITY_RANGE)
+
+E0 = calculate_total_energy(masses, positions, velocities)
 
 # Set up the plot
 fig, ax = plt.subplots()
@@ -121,7 +121,7 @@ def animate(frame):
     masses_within_radius = count_masses_within_radius(positions[1:], radius)  # Exclude the central mass
 
     # Update the text box
-    info_text.set_text(f"Total Energy: {total_energy:.2e} J\nclose masses: {masses_within_radius}")
+    info_text.set_text(f"E/E0: {round(total_energy/E0):n}\nclose masses: {masses_within_radius}")
 
     return scat, central_mass, info_text
 
