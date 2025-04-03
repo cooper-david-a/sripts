@@ -5,12 +5,13 @@ import CoolProp.CoolProp as CP
 import matplotlib.pyplot as plt
 
 # Constants
-LENGTH = 10.0  # Length of the heat exchanger (m)
+LENGTH = 5  # Length of the heat exchanger (m)
+NUM_POINTS = 200  # Number of discretization points
 
 DIAMETER_INNER = 0.02  # Inner tube diameter (m)
 THICKNESS_INNER = 0.001  # Inner tube thickness (m)
 
-DIAMETER_OUTER = 0.04  # Outer tube diameter (m)
+DIAMETER_OUTER = 0.05  # Outer tube diameter (m)
 THICKNESS_OUTER = 0.002  # Outer tube thickness (m)
 
 K_TUBE = 16  # Thermal conductivity of the inner tube (W/m-K)
@@ -23,8 +24,6 @@ D3 = DIAMETER_OUTER - 2*THICKNESS_OUTER  # Outer tube diameter (m)
 A1 = np.pi/4*D1**2  # Inner tube area (m^2)
 A2 = np.pi/4*(D3**2-D2**2)  # Outer tube area (m^2)
 
-
-
 def state(fluid,P,H):
     return {'fluid':fluid,'P':P,'H':H,
             'T':CP.PropsSI('T','P',P,'H',H,fluid),
@@ -33,7 +32,6 @@ def state(fluid,P,H):
             'mu':CP.PropsSI('viscosity','P',P,'H',H,fluid),
             'k':CP.PropsSI('conductivity','P',P,'H',H,fluid)
             }
-  
         
 def q(state1, state2, mdot1, mdot2):
     Dh2 = D3 - D2
@@ -53,50 +51,95 @@ def q(state1, state2, mdot1, mdot2):
     
     return np.pi*(state1['T']-state2['T']) / (1/(h1*D1) + np.log(D2/D1)/(2*K_TUBE) + 1/(h2*Dh2))
 
-if __name__ == '__main__':
-    P1 = 101325  # Pressure of fluid 1 (Pa)
-    P2 = 101325  # Pressure of fluid 2 (Pa)
-    state1 = state('Water', P1, 80000)
-    state2 = state('Water', P2, 300000)
-    mdot1 = 0.5  # Mass flow rate of fluid 1 (kg/s)
-    mdot2 = 0.5  # Mass flow rate of fluid 2 (kg/s)
+fluid1 = 'Water'
+mdot1 = 0.1  # Mass flow rate (kg/s)
+P1 = 101325  # Pressure (Pa)
+H1 = 440000  # Enthalpy (J/kg)
+
+
+fluid2 = 'Water'
+mdot2 = 0.1  # Mass flow rate (kg/s)
+P2 = 101325  # Pressure (Pa)
+H2 = 80000  # Enthalpy (J/kg)
+
+A = np.diag(-1*np.ones(NUM_POINTS-1, dtype=float), -1) + np.diag(np.ones(NUM_POINTS-1, dtype=float), 1)
+A[0,0] = 1
+A[0,1] = 0
+A[NUM_POINTS-1,NUM_POINTS-1] = 1
+
+dx = LENGTH/(NUM_POINTS-1)
+
+h1 = np.ones(NUM_POINTS, dtype=float) * H1
+h2 = np.ones(NUM_POINTS, dtype=float) * H2
+
+b1 = np.zeros_like(h1)
+b2 = np.zeros_like(h2)
+
+b1[0] = h1[0]
+b2[0] = h2[0]
+
+delta = 1e6
+for j in range(50):
+    h1_old = h1.copy()
+    h2_old = h2.copy()
+    for i in range(1,NUM_POINTS):
+        state1 = state(fluid1,P1,h1[i])
+        state2 = state(fluid2,P2,h2[i])
+        v1 = mdot1/state1['D']/A1
+        v2 = mdot2/state2['D']/A2
+        q_ = q(state1,state2,mdot1,mdot2)
+        
+        b1[i] = -2 * q_ * dx / mdot1
+        b2[i] = 2 * q_ * dx / mdot2
+        
+        b1[-1] = b1[-1]/2
+        b2[-1] = b2[-1]/2
+        
+    h1 = np.linalg.solve(A,b1)
+    h2 = np.linalg.solve(A,b2)
+    delta = np.max(np.abs(h1-h1_old)/h1_old) + np.max(np.abs(h2-h2_old)/h2_old)
+    print(j,':',delta)
+    if delta < 1e-6:
+        break
     
-    def dh_dx(x, h2):
-        state2 = state('Water',P2 , h2[0])
-        qx = q(state1, state2, mdot1, mdot2)
-        v = mdot2/state2['D']/A2
-        return qx/v
     
-    # Define the range of the heat exchanger
-    x_span = (0, LENGTH)
-    NUM_POINTS = 100
-    x_eval = np.linspace(x_span[0], x_span[1], NUM_POINTS)
 
-    # Initial enthalpy for the outer tube fluid
-    h2_initial = state2['H']
+x = np.linspace(0, LENGTH, NUM_POINTS)
 
-    # Solve the ODE using RK45
-    solution = solve_ivp(dh_dx, x_span, [h2_initial], t_eval=x_eval, method='RK45')
+# Calculate temperature and heat transfer rate along the length
+T1 = [state(fluid1, P1, h)['T'] for h in h1]
+T2 = [state(fluid2, P2, h)['T'] for h in h2]
+q_values = [q(state(fluid1, P1, h1[i]), state(fluid2, P2, h2[i]), mdot1, mdot2) for i in range(NUM_POINTS)]
 
-    # Extract results
-    x = solution.t
-    h2_values = solution.y[0]
+# Create subplots
+fig, axs = plt.subplots(3, 1, figsize=(8, 12))
 
-    # Calculate corresponding temperatures for the outer tube fluid
-    T2_values = [state('Water', state2['P'], h)['T'] for h in h2_values]
+# Plot temperature vs x
+axs[0].plot(x, T1, label='Inner Tube Temperature (T1)')
+axs[0].plot(x, T2, label='Outer Tube Temperature (T2)')
+axs[0].set_xlabel('Length (m)')
+axs[0].set_ylabel('Temperature (K)')
+axs[0].set_title('Temperature Distribution Along the Heat Exchanger')
+axs[0].legend()
+axs[0].grid()
 
-    # Assuming constant temperature for the inner tube fluid
-    T1_values = [state1['T']] * len(x)
+# Plot heat transfer rate vs x
+axs[1].plot(x, q_values, label='Heat Transfer Rate (q)')
+axs[1].set_xlabel('Length (m)')
+axs[1].set_ylabel('Heat Transfer Rate (W)')
+axs[1].set_title('Heat Transfer Rate Along the Heat Exchanger')
+axs[1].legend()
+axs[1].grid()
 
-    # Calculate heat transfer rate (q) along the heat exchanger
-    q_values = [q(state1, state('Water', state2['P'], h), 0.5, 0.5) for h in h2_values]
+# Plot enthalpy vs x
+axs[2].plot(x, h1, label='Inner Tube Enthalpy (h1)')
+axs[2].plot(x, h2, label='Outer Tube Enthalpy (h2)')
+axs[2].set_xlabel('Length (m)')
+axs[2].set_ylabel('Enthalpy (J/kg)')
+axs[2].set_title('Enthalpy Distribution Along the Heat Exchanger')
+axs[2].legend()
+axs[2].grid()
 
-    # Plot T2 vs x
-    plt.figure(figsize=(8, 6))
-    plt.plot(x, T2_values, label='T2 (Outer Tube Fluid)', color='blue')
-    plt.xlabel('Position along the Heat Exchanger (x) [m]')
-    plt.ylabel('Temperature (T) [K]')
-    plt.title('Temperature Profile of Outer Tube Fluid')
-    plt.legend()
-    plt.grid()
-    plt.show()
+# Adjust layout and show the plot
+plt.tight_layout()
+plt.show()
