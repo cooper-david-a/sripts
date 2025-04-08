@@ -1,11 +1,13 @@
 import numpy as np
 from scipy.optimize import fsolve
+from scipy.sparse import csr_matrix
+from scipy.sparse.linalg import spsolve
 import CoolProp.CoolProp as CP
 import matplotlib.pyplot as plt
 
 # Constants
-LENGTH = 5  # Length of the heat exchanger (m)
-NUM_POINTS = 350  # Number of discretization points
+LENGTH = 15  # Length of the heat exchanger (m)
+NUM_POINTS = 100*LENGTH  # Number of discretization points
 
 DIAMETER_INNER = 0.02  # Inner tube diameter (m)
 THICKNESS_INNER = 0.001  # Inner tube thickness (m)
@@ -25,13 +27,14 @@ A2 = np.pi/4*(D3**2-D2**2)  # Outer tube area (m^2)
 
 
 def state(fluid, P, H):
+    phase = CP.PhaseSI('P', P, 'H', H, fluid)
     return {'fluid': fluid, 'P': P, 'H': H,
-            'Q': CP.PropsSI('Q', 'P', P, 'H', H, fluid),
-            'T': CP.PropsSI('T', 'P', P, 'H', H, fluid),
-            'D': CP.PropsSI('D', 'P', P, 'H', H, fluid),
-            'Pr': CP.PropsSI('Prandtl', 'P', P, 'H', H, fluid),
-            'mu': CP.PropsSI('viscosity', 'P', P, 'H', H, fluid),
-            'k': CP.PropsSI('conductivity', 'P', P, 'H', H, fluid),
+            'Q': CP.PropsSI('Q', f'P|{phase}', P, 'H', H, fluid),
+            'T': CP.PropsSI('T', f'P|{phase}', P, 'H', H, fluid),
+            'D': CP.PropsSI('D', f'P|{phase}', P, 'H', H, fluid),
+            'Pr': CP.PropsSI('Prandtl', f'P|{phase}', P, 'H', H, fluid),
+            'mu': CP.PropsSI('viscosity', f'P|{phase}', P, 'H', H, fluid),
+            'k': CP.PropsSI('conductivity', f'P|{phase}', P, 'H', H, fluid),
             }
 
 
@@ -82,7 +85,10 @@ A[0, 0] = 1
 A[0, 1] = 0
 A[NUM_POINTS-1, NUM_POINTS-1] = 1
 
+A = csr_matrix(A)
+
 dx = LENGTH/(NUM_POINTS-1)
+print('dx: ', dx)
 
 h1 = np.ones(NUM_POINTS, dtype=float) * float(H1)
 h2 = np.ones(NUM_POINTS, dtype=float) * float(H2)
@@ -96,7 +102,7 @@ b2[0] = h2[0]
 for j in range(50):
     h1_old = h1.copy()
     h2_old = h2.copy()
-
+    print('Iteration: ', j, 'Building b''s...')
     for i in range(1, NUM_POINTS):
         state1 = state(fluid1, P1, h1[i])
         state2 = state(fluid2, P2, h2[i])
@@ -110,17 +116,18 @@ for j in range(50):
         b1[-1] = b1[-1]/2
         b2[-1] = b2[-1]/2
 
-    h1 = np.linalg.solve(A, b1)
-    h2 = np.linalg.solve(A, b2)
+    print('Iteration: ', j, 'Solving...')
+    h1 = spsolve(A, b1)
+    h2 = spsolve(A, b2)
     # Use a weighted average for faster convergence
-    relaxation_factor = 0.5
+    relaxation_factor = 0.25
     h1 = relaxation_factor * h1 + (1 - relaxation_factor) * h1_old
     h2 = relaxation_factor * h2 + (1 - relaxation_factor) * h2_old
     
-    delta = np.linalg.norm(h1-h1_old)/np.linalg.norm(h1_old) + \
-        np.linalg.norm(h2-h2_old)/np.linalg.norm(h2_old)
+    delta = abs(np.max(h1-h1_old)/np.max(h1_old)) + \
+        abs(np.max(h2-h2_old)/np.max(h2_old))
 
-    print(j, ':', delta)
+    print(j, ':','delta: ', delta)
     if delta < 1e-6:
         break
 
@@ -148,7 +155,7 @@ axs[0].grid()
 # Plot heat transfer rate vs x
 axs[1].plot(x, q_values, label='Heat Transfer Rate (q)')
 axs[1].set_xlabel('Length (m)')
-axs[1].set_ylabel('Heat Transfer Rate (W)')
+axs[1].set_ylabel('Heat Transfer Rate (W/m)')
 axs[1].set_title('Heat Transfer Rate Along the Heat Exchanger')
 axs[1].legend()
 axs[1].grid()
