@@ -6,7 +6,7 @@ import CoolProp.CoolProp as CP
 import matplotlib.pyplot as plt
 
 # Constants
-LENGTH = 15  # Length of the heat exchanger (m)
+LENGTH = 1  # Length of the heat exchanger (m)
 NUM_POINTS = 100*LENGTH  # Number of discretization points
 
 DIAMETER_INNER = 0.02  # Inner tube diameter (m)
@@ -15,7 +15,7 @@ THICKNESS_INNER = 0.001  # Inner tube thickness (m)
 DIAMETER_OUTER = 0.05  # Outer tube diameter (m)
 THICKNESS_OUTER = 0.002  # Outer tube thickness (m)
 
-K_TUBE = 16  # Thermal conductivity of the inner tube (W/m-K)
+K_TUBE = 24  # Thermal conductivity of the inner tube (W/m-K)
 ROUGHNESS = 0  # Tube roughness (m)
 
 D1 = DIAMETER_INNER - 2*THICKNESS_INNER  # Inner tube diameter (m)
@@ -68,16 +68,16 @@ def q(state1, state2, mdot1, mdot2):
     return np.pi*(state1['T']-state2['T']) / (1/(h1*D1) + np.log(D2/D1)/(2*K_TUBE) + 1/(h2*Dh2))
 
 
-fluid1 = 'Water'
+fluid1 = 'R32'
 mdot1 = 0.015  # Mass flow rate (kg/s)
-P1 = 2*101325  # Pressure (Pa)
-H1 = 2800000  # Enthalpy (J/kg)
+P1 = 20*101325  # Pressure (Pa)
+H1 = 480000  # Enthalpy (J/kg)
 
 
 fluid2 = 'Water'
-mdot2 = 0.15  # Mass flow rate (kg/s)
+mdot2 = 0.5  # Mass flow rate (kg/s)
 P2 = 101325  # Pressure (Pa)
-H2 = 400000  # Enthalpy (J/kg)
+H2 = 50000  # Enthalpy (J/kg)
 
 A = np.diag(-1.0*np.ones(NUM_POINTS-1, dtype=float), -1) + \
     np.diag(np.ones(NUM_POINTS-1, dtype=float), 1)
@@ -120,7 +120,7 @@ for j in range(50):
     h1 = spsolve(A, b1)
     h2 = spsolve(A, b2)
     # Use a weighted average for faster convergence
-    relaxation_factor = 0.25
+    relaxation_factor = 0.5
     h1 = relaxation_factor * h1 + (1 - relaxation_factor) * h1_old
     h2 = relaxation_factor * h2 + (1 - relaxation_factor) * h2_old
     
