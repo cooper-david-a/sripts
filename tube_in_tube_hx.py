@@ -28,13 +28,21 @@ A2 = np.pi/4*(D3**2-D2**2)  # Outer tube area (m^2)
 
 def state(fluid, P, H):
     phase = CP.PhaseSI('P', P, 'H', H, fluid)
+    
+    if phase == "twophase":
+        Q = CP.PropsSI('Q', f'P|{phase}', P, 'H', H, fluid)
+        k = Q*CP.PropsSI('conductivity', f'P|{phase}', P, 'Q', 1, fluid) + (1-Q)*CP.PropsSI('conductivity', f'P|{phase}', P, 'Q', 0, fluid)
+    else:
+        Q = -1
+        k = CP.PropsSI('conductivity', f'P|{phase}', P, 'H', H, fluid)
+    
     return {'fluid': fluid, 'P': P, 'H': H,
-            'Q': CP.PropsSI('Q', f'P|{phase}', P, 'H', H, fluid),
+            'Q': Q,
             'T': CP.PropsSI('T', f'P|{phase}', P, 'H', H, fluid),
             'D': CP.PropsSI('D', f'P|{phase}', P, 'H', H, fluid),
             'Pr': CP.PropsSI('Prandtl', f'P|{phase}', P, 'H', H, fluid),
             'mu': CP.PropsSI('viscosity', f'P|{phase}', P, 'H', H, fluid),
-            'k': CP.PropsSI('conductivity', f'P|{phase}', P, 'H', H, fluid),
+            'k': k
             }
 
 
@@ -71,7 +79,7 @@ def q(state1, state2, mdot1, mdot2):
 fluid1 = 'R32'
 mdot1 = 0.015  # Mass flow rate (kg/s)
 P1 = 20*101325  # Pressure (Pa)
-H1 = 480000  # Enthalpy (J/kg)
+H1 = 520000  # Enthalpy (J/kg)
 
 
 fluid2 = 'Water'
@@ -120,7 +128,7 @@ for j in range(50):
     h1 = spsolve(A, b1)
     h2 = spsolve(A, b2)
     # Use a weighted average for faster convergence
-    relaxation_factor = 0.5
+    relaxation_factor = 1
     h1 = relaxation_factor * h1 + (1 - relaxation_factor) * h1_old
     h2 = relaxation_factor * h2 + (1 - relaxation_factor) * h2_old
     
