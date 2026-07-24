@@ -83,7 +83,7 @@ H1 = 520000  # Enthalpy (J/kg)
 
 
 fluid2 = 'Water'
-mdot2 = 0.5  # Mass flow rate (kg/s)
+mdot2 = .05  # Mass flow rate (kg/s)
 P2 = 101325  # Pressure (Pa)
 H2 = 50000  # Enthalpy (J/kg)
 
