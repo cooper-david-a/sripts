@@ -118,6 +118,5 @@ ax_q.set_title('Total Heat Transferred vs Mass Flow Rate')
 ax_q.grid(True, alpha=0.3)
 
 fig_q.tight_layout()
-fig_q.savefig('tube_in_ice_box_heat_transfer.png', dpi=300, bbox_inches='tight')
 
 plt.show()
