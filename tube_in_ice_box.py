@@ -104,4 +104,20 @@ ax_re.set_ylabel('Nusselt number')
 ax_re.set_title('Nusselt Number vs Mass Flow Rate')
 ax_re.grid(True, alpha=0.3)
 
+heat_transferred = []
+for mdot in mdot_array:
+    state1, _, To_calc, _ = evaluate_flow_case(mdot)
+    heat_transferred.append(mdot * state1['Cp'] * (T1 - To_calc))
+
+fig_q, ax_q = plt.subplots(figsize=(8, 4))
+ax_q.plot(mdot_array, heat_transferred, color='tab:purple')
+ax_q.set_xscale('log')
+ax_q.set_xlabel('Mass flow rate (kg/s)')
+ax_q.set_ylabel('Total heat transferred (W)')
+ax_q.set_title('Total Heat Transferred vs Mass Flow Rate')
+ax_q.grid(True, alpha=0.3)
+
+fig_q.tight_layout()
+fig_q.savefig('tube_in_ice_box_heat_transfer.png', dpi=300, bbox_inches='tight')
+
 plt.show()
